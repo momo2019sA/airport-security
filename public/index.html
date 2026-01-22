@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8">
+<title>نظام بلاغات أمن المطار</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<style>
+html, body, #map { height:100%; margin:0; }
+
+.alert {
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  animation:pulse 1.5s infinite;
+}
+
+.yellow {
+  background: yellow;
+  box-shadow: 0 0 15px yellow;
+}
+
+.orange {
+  background: orange;
+  box-shadow: 0 0 18px orange;
+}
+
+.red {
+  background: red;
+  box-shadow: 0 0 25px red;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+</style>
+</head>
+
+<body>
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map('map').setView([25.625457, 37.0837628], 16);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19
+}).addTo(map);
+
+let reports = {};
+let markers = {};
+
+function getColor(count){
+  if(count === 1) return "yellow";
+  if(count <= 6) return "orange";
+  return "red";
+}
+
+function drawMarker(key, data){
+  if(markers[key]) map.removeLayer(markers[key]);
+
+  const icon = L.divIcon({
+    className: "",
+    html: `<div class="alert ${getColor(data.count)}"></div>`,
+    iconSize: [20,20]
+  });
+
+  markers[key] = L.marker(data.latlng, {icon}).addTo(map)
+    .bindPopup("عدد البلاغات: " + data.count);
+}
+
+fetch("/reports")
+.then(r => r.json())
+.then(data => {
+  reports = data || {};
+  for(const k in reports){
+    drawMarker(k, reports[k]);
+  }
+});
+
+map.on("click", e => {
+  const key = e.latlng.lat.toFixed(5)+","+e.latlng.lng.toFixed(5);
+
+  if(!reports[key]){
+    reports[key] = { latlng: e.latlng, count: 0 };
+  }
+
+  reports[key].count++;
+  drawMarker(key, reports[key]);
+
+  fetch("/reports", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(reports)
+  });
+});
+</script>
+</body>
+</html>
